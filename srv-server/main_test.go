@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,6 +23,89 @@ type fakeRootAccountUseCase struct {
 type fakeRootAccountStore struct {
 	createAccountCalls  int
 	createAccountParams store.CreateAccountParams
+}
+
+const lifecycleTestTimeout = time.Second
+
+type fakeHTTPServerLifecycle struct {
+	listenStarted chan struct{}
+	listenResult  chan error
+	shutdownCalls chan context.Context
+	closeCalls    chan struct{}
+
+	shutdownErr error
+	closeErr    error
+}
+
+var _ httpServerLifecycle = (*fakeHTTPServerLifecycle)(nil)
+
+func newFakeHTTPServerLifecycle() *fakeHTTPServerLifecycle {
+	return &fakeHTTPServerLifecycle{
+		listenStarted: make(chan struct{}),
+		listenResult:  make(chan error),
+		shutdownCalls: make(
+			chan context.Context,
+			1,
+		),
+		closeCalls: make(
+			chan struct{},
+			1,
+		),
+	}
+}
+
+func (f *fakeHTTPServerLifecycle) ListenAndServe() error {
+	close(f.listenStarted)
+
+	return <-f.listenResult
+}
+
+func (f *fakeHTTPServerLifecycle) Shutdown(
+	ctx context.Context,
+) error {
+	f.shutdownCalls <- ctx
+
+	return f.shutdownErr
+}
+
+func (f *fakeHTTPServerLifecycle) Close() error {
+	f.closeCalls <- struct{}{}
+
+	return f.closeErr
+}
+
+func waitForLifecycleStart(
+	t *testing.T,
+	server *fakeHTTPServerLifecycle,
+) {
+	t.Helper()
+
+	select {
+	case <-server.listenStarted:
+	case <-time.After(lifecycleTestTimeout):
+		t.Fatal(
+			"timed out waiting for ListenAndServe",
+		)
+	}
+}
+
+func waitForLifecycleResult(
+	t *testing.T,
+	results <-chan error,
+) error {
+	t.Helper()
+
+	select {
+	case err := <-results:
+		return err
+
+	case <-time.After(lifecycleTestTimeout):
+		t.Fatal(
+			"timed out waiting for runHTTPServer",
+		)
+
+		return nil
+	}
 }
 
 var _ accountdomain.Store = (*fakeRootAccountStore)(nil)
@@ -303,5 +387,317 @@ func TestNewHTTPHandlerRegistersAccountRoutes(
 				)
 			}
 		})
+	}
+}
+
+func TestRunHTTPServerReturnsListenError(
+	t *testing.T,
+) {
+	listenErr := errors.New(
+		"listen failed",
+	)
+
+	server := newFakeHTTPServerLifecycle()
+
+	appCtx, cancelApp := context.WithCancel(
+		context.Background(),
+	)
+	defer cancelApp()
+
+	shutdownRequested := make(
+		chan struct{},
+		1,
+	)
+	results := make(
+		chan error,
+		1,
+	)
+
+	go func() {
+		results <- runHTTPServer(
+			appCtx,
+			server,
+			func() {
+				shutdownRequested <- struct{}{}
+			},
+		)
+	}()
+
+	waitForLifecycleStart(
+		t,
+		server,
+	)
+
+	server.listenResult <- listenErr
+
+	err := waitForLifecycleResult(
+		t,
+		results,
+	)
+	if !errors.Is(err, listenErr) {
+		t.Fatalf(
+			"error = %v, want wrapped %v",
+			err,
+			listenErr,
+		)
+	}
+
+	select {
+	case <-server.shutdownCalls:
+		t.Fatal(
+			"Shutdown should not be called",
+		)
+	default:
+	}
+
+	select {
+	case <-server.closeCalls:
+		t.Fatal(
+			"Close should not be called",
+		)
+	default:
+	}
+
+	select {
+	case <-shutdownRequested:
+		t.Fatal(
+			"shutdown callback should not be called",
+		)
+	default:
+	}
+}
+
+func TestRunHTTPServerGracefulShutdown(
+	t *testing.T,
+) {
+	server := newFakeHTTPServerLifecycle()
+
+	appCtx, cancelApp := context.WithCancel(
+		context.Background(),
+	)
+
+	shutdownRequested := make(
+		chan struct{},
+		1,
+	)
+	results := make(
+		chan error,
+		1,
+	)
+
+	go func() {
+		results <- runHTTPServer(
+			appCtx,
+			server,
+			func() {
+				shutdownRequested <- struct{}{}
+			},
+		)
+	}()
+
+	waitForLifecycleStart(
+		t,
+		server,
+	)
+
+	cancelApp()
+
+	var shutdownCtx context.Context
+
+	select {
+	case shutdownCtx = <-server.shutdownCalls:
+	case <-time.After(lifecycleTestTimeout):
+		t.Fatal(
+			"timed out waiting for Shutdown",
+		)
+	}
+
+	select {
+	case <-shutdownRequested:
+	case <-time.After(lifecycleTestTimeout):
+		t.Fatal(
+			"shutdown callback was not called",
+		)
+	}
+
+	deadline, ok := shutdownCtx.Deadline()
+	if !ok {
+		t.Fatal(
+			"Shutdown context has no deadline",
+		)
+	}
+
+	remaining := time.Until(deadline)
+	if remaining <= 0 ||
+		remaining > httpShutdownTimeout {
+		t.Fatalf(
+			"Shutdown deadline remaining = %s",
+			remaining,
+		)
+	}
+
+	select {
+	case err := <-results:
+		t.Fatalf(
+			"runHTTPServer returned before ListenAndServe: %v",
+			err,
+		)
+	default:
+	}
+
+	server.listenResult <- http.ErrServerClosed
+
+	err := waitForLifecycleResult(
+		t,
+		results,
+	)
+	if err != nil {
+		t.Fatalf(
+			"runHTTPServer returned error: %v",
+			err,
+		)
+	}
+
+	if !errors.Is(
+		shutdownCtx.Err(),
+		context.Canceled,
+	) {
+		t.Fatalf(
+			"Shutdown context error = %v, want %v",
+			shutdownCtx.Err(),
+			context.Canceled,
+		)
+	}
+
+	select {
+	case <-server.closeCalls:
+		t.Fatal(
+			"Close should not be called",
+		)
+	default:
+	}
+
+	select {
+	case <-shutdownRequested:
+		t.Fatal(
+			"shutdown callback called more than once",
+		)
+	default:
+	}
+
+	select {
+	case <-server.shutdownCalls:
+		t.Fatal(
+			"Shutdown called more than once",
+		)
+	default:
+	}
+}
+
+func TestRunHTTPServerFallsBackToClose(
+	t *testing.T,
+) {
+	shutdownErr := errors.New(
+		"shutdown failed",
+	)
+	closeErr := errors.New(
+		"close failed",
+	)
+
+	server := newFakeHTTPServerLifecycle()
+	server.shutdownErr = shutdownErr
+	server.closeErr = closeErr
+
+	appCtx, cancelApp := context.WithCancel(
+		context.Background(),
+	)
+
+	shutdownRequested := make(
+		chan struct{},
+		1,
+	)
+	results := make(
+		chan error,
+		1,
+	)
+
+	go func() {
+		results <- runHTTPServer(
+			appCtx,
+			server,
+			func() {
+				shutdownRequested <- struct{}{}
+			},
+		)
+	}()
+
+	waitForLifecycleStart(
+		t,
+		server,
+	)
+
+	cancelApp()
+
+	select {
+	case <-server.shutdownCalls:
+	case <-time.After(lifecycleTestTimeout):
+		t.Fatal(
+			"timed out waiting for Shutdown",
+		)
+	}
+
+	select {
+	case <-server.closeCalls:
+	case <-time.After(lifecycleTestTimeout):
+		t.Fatal(
+			"timed out waiting for Close",
+		)
+	}
+
+	server.listenResult <- http.ErrServerClosed
+
+	err := waitForLifecycleResult(
+		t,
+		results,
+	)
+
+	if !errors.Is(err, shutdownErr) {
+		t.Fatalf(
+			"error = %v, want wrapped %v",
+			err,
+			shutdownErr,
+		)
+	}
+
+	if !errors.Is(err, closeErr) {
+		t.Fatalf(
+			"error = %v, want wrapped %v",
+			err,
+			closeErr,
+		)
+	}
+
+	select {
+	case <-shutdownRequested:
+	case <-time.After(lifecycleTestTimeout):
+		t.Fatal(
+			"shutdown callback was not called",
+		)
+	}
+
+	select {
+	case <-server.shutdownCalls:
+		t.Fatal(
+			"Shutdown called more than once",
+		)
+	default:
+	}
+
+	select {
+	case <-server.closeCalls:
+		t.Fatal(
+			"Close called more than once",
+		)
+	default:
 	}
 }

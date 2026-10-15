@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -19,7 +20,18 @@ import (
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/pkg/postgres"
 )
 
-const httpReadHeaderTimeout = 5 * time.Second
+const (
+	httpReadHeaderTimeout = 5 * time.Second
+	httpShutdownTimeout   = 10 * time.Second
+)
+
+type httpServerLifecycle interface {
+	ListenAndServe() error
+	Shutdown(context.Context) error
+	Close() error
+}
+
+var _ httpServerLifecycle = (*http.Server)(nil)
 
 func newHTTPServer(
 	address string,
@@ -30,6 +42,83 @@ func newHTTPServer(
 		Handler:           handler,
 		ReadHeaderTimeout: httpReadHeaderTimeout,
 	}
+}
+
+func runHTTPServer(
+	appCtx context.Context,
+	server httpServerLifecycle,
+	onShutdownRequested func(),
+) error {
+	serverErrors := make(
+		chan error,
+		1,
+	)
+
+	go func() {
+		serverErrors <- server.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErrors:
+		if err == nil ||
+			errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+
+		return fmt.Errorf(
+			"listen and serve HTTP: %w",
+			err,
+		)
+
+	case <-appCtx.Done():
+		onShutdownRequested()
+	}
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(
+		context.Background(),
+		httpShutdownTimeout,
+	)
+
+	shutdownErr := server.Shutdown(
+		shutdownCtx,
+	)
+	cancelShutdown()
+
+	var lifecycleErr error
+
+	if shutdownErr != nil {
+		lifecycleErr = fmt.Errorf(
+			"shutdown HTTP server: %w",
+			shutdownErr,
+		)
+
+		if closeErr := server.Close(); closeErr != nil {
+			lifecycleErr = errors.Join(
+				lifecycleErr,
+				fmt.Errorf(
+					"force close HTTP server: %w",
+					closeErr,
+				),
+			)
+		}
+	}
+
+	serveErr := <-serverErrors
+	if serveErr != nil &&
+		!errors.Is(
+			serveErr,
+			http.ErrServerClosed,
+		) {
+		lifecycleErr = errors.Join(
+			lifecycleErr,
+			fmt.Errorf(
+				"listen and serve HTTP: %w",
+				serveErr,
+			),
+		)
+	}
+
+	return lifecycleErr
 }
 
 func newAccountUseCase(
@@ -139,57 +228,20 @@ func main() {
 		server.Addr,
 	)
 
-	serverErrors := make(chan error, 1)
-
-	go func() {
-		serverErrors <- server.ListenAndServe()
-	}()
-
-	select {
-	case <-appCtx.Done():
-		log.Printf("shutdown signal received")
-		stopSignals()
-
-	case err := <-serverErrors:
-		if err != nil &&
-			!errors.Is(err, http.ErrServerClosed) {
-			log.Printf(
-				"practice server stopped: %v",
-				err,
-			)
-		}
-
-		return
-	}
-
-	shutdownCtx, cancelShutdown := context.WithTimeout(
-		context.Background(),
-		10*time.Second,
-	)
-
-	shutdownErr := server.Shutdown(shutdownCtx)
-	cancelShutdown()
-
-	if shutdownErr != nil {
-		log.Printf(
-			"practice server shutdown failed: %v",
-			shutdownErr,
-		)
-
-		if err := server.Close(); err != nil {
-			log.Printf(
-				"practice server force close failed: %v",
-				err,
-			)
-		}
-	}
-
-	if err := <-serverErrors; err != nil &&
-		!errors.Is(err, http.ErrServerClosed) {
+	if err := runHTTPServer(
+		appCtx,
+		server,
+		func() {
+			log.Printf("shutdown signal received")
+			stopSignals()
+		},
+	); err != nil {
 		log.Printf(
 			"practice server stopped: %v",
 			err,
 		)
+
+		return
 	}
 
 	log.Printf("practice server stopped")
