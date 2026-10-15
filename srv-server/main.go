@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/config"
+	"github.com/imamsyafii-dev/bbge-practice/srv-server/pkg/postgres"
 )
 
 func healthHandler(
@@ -25,6 +27,21 @@ func healthHandler(
 
 func main() {
 	cfg := config.Load()
+	ctx := context.Background()
+
+	database, err := postgres.Open(
+		ctx,
+		cfg.Postgres,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close()
+
+	log.Printf(
+		"connected to PostgreSQL database %s",
+		cfg.Postgres.Database,
+	)
 
 	mux := http.NewServeMux()
 
@@ -45,6 +62,9 @@ func main() {
 	)
 
 	if err := server.ListenAndServe(); err != nil {
-		log.Fatal(err)
+		log.Printf(
+			"practice server stopped: %v",
+			err,
+		)
 	}
 }
