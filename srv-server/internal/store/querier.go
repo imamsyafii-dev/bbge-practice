@@ -9,6 +9,7 @@ import (
 )
 
 type Querier interface {
+	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	GetAccountByUserID(ctx context.Context, userID string) (Account, error)
 }
 

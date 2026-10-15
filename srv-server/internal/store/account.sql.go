@@ -9,6 +9,44 @@ import (
 	"context"
 )
 
+const createAccount = `-- name: CreateAccount :one
+INSERT INTO account (
+    user_id,
+    name
+) VALUES (
+    $1,
+    $2
+)
+RETURNING
+    id,
+    user_id,
+    name,
+    status,
+    version,
+    created_at,
+    updated_at
+`
+
+type CreateAccountParams struct {
+	UserID string `json:"user_id"`
+	Name   string `json:"name"`
+}
+
+func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error) {
+	row := q.db.QueryRow(ctx, createAccount, arg.UserID, arg.Name)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Status,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAccountByUserID = `-- name: GetAccountByUserID :one
 SELECT
     id,
