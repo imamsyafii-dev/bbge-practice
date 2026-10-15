@@ -19,6 +19,18 @@ import (
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/pkg/postgres"
 )
 
+func newAccountUseCase(
+	accountStore accountdomain.Store,
+) *accountapp.UseCase {
+	accountService := accountdomain.NewService(
+		accountStore,
+	)
+
+	return accountapp.NewUseCase(
+		accountService,
+	)
+}
+
 func newHTTPHandler(
 	accountUseCase router.AccountUseCase,
 ) http.Handler {
@@ -96,12 +108,8 @@ func main() {
 
 	queries := store.New(database)
 
-	accountService := accountdomain.NewService(
+	accountUseCase := newAccountUseCase(
 		queries,
-	)
-
-	accountUseCase := accountapp.NewUseCase(
-		accountService,
 	)
 
 	httpHandler := newHTTPHandler(

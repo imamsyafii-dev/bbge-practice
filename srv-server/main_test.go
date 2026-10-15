@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	accountapp "github.com/imamsyafii-dev/bbge-practice/srv-server/internal/app/account"
+	accountdomain "github.com/imamsyafii-dev/bbge-practice/srv-server/internal/domain/account"
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/internal/router"
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/internal/store"
 )
@@ -15,6 +16,35 @@ import (
 type fakeRootAccountUseCase struct {
 	createCalls      int
 	getByUserIDCalls int
+}
+
+type fakeRootAccountStore struct {
+	createAccountCalls  int
+	createAccountParams store.CreateAccountParams
+}
+
+var _ accountdomain.Store = (*fakeRootAccountStore)(nil)
+
+func (f *fakeRootAccountStore) CreateAccount(
+	_ context.Context,
+	params store.CreateAccountParams,
+) (store.Account, error) {
+	f.createAccountCalls++
+	f.createAccountParams = params
+
+	return store.Account{
+		ID:     29,
+		UserID: params.UserID,
+		Name:   params.Name,
+		Status: 1,
+	}, nil
+}
+
+func (f *fakeRootAccountStore) GetAccountByUserID(
+	context.Context,
+	string,
+) (store.Account, error) {
+	panic("unexpected GetAccountByUserID call")
 }
 
 var _ router.AccountUseCase = (*fakeRootAccountUseCase)(nil)
@@ -45,6 +75,60 @@ func (f *fakeRootAccountUseCase) GetByUserID(
 		Name:   "Step 28 Practice User",
 		Status: 1,
 	}, nil
+}
+
+func TestNewAccountUseCaseWiresDependencies(
+	t *testing.T,
+) {
+	fake := &fakeRootAccountStore{}
+
+	useCase := newAccountUseCase(
+		fake,
+	)
+
+	account, err := useCase.Create(
+		context.Background(),
+		accountapp.CreateInput{
+			UserID: "  practice-user-029  ",
+			Name:   "  Step 29 Practice User  ",
+		},
+	)
+	if err != nil {
+		t.Fatalf(
+			"Create returned error: %v",
+			err,
+		)
+	}
+
+	if fake.createAccountCalls != 1 {
+		t.Fatalf(
+			"CreateAccount calls = %d, want 1",
+			fake.createAccountCalls,
+		)
+	}
+
+	expectedParams := store.CreateAccountParams{
+		UserID: "practice-user-029",
+		Name:   "Step 29 Practice User",
+	}
+
+	if fake.createAccountParams != expectedParams {
+		t.Fatalf(
+			"CreateAccount params = %+v, want %+v",
+			fake.createAccountParams,
+			expectedParams,
+		)
+	}
+
+	if account.ID != 29 ||
+		account.UserID != expectedParams.UserID ||
+		account.Name != expectedParams.Name ||
+		account.Status != 1 {
+		t.Fatalf(
+			"account = %+v, want composed account result",
+			account,
+		)
+	}
 }
 
 func TestNewHTTPHandlerRegistersHealthRoute(
