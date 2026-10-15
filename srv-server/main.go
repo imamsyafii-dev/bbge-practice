@@ -27,12 +27,18 @@ func healthHandler(
 
 func main() {
 	cfg := config.Load()
-	ctx := context.Background()
+
+	startupCtx, cancelStartup := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
 
 	database, err := postgres.Open(
-		ctx,
+		startupCtx,
 		cfg.Postgres,
 	)
+	cancelStartup()
+
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -109,7 +109,7 @@ defer database.Close()
 
 Error dari `postgres.Open` masih ditangani dengan `log.Fatal` karena pada titik itu startup gagal dan belum ada pool berhasil yang perlu ditutup oleh `main`. Sebaliknya, error dari `server.ListenAndServe()` dicatat dengan `log.Printf`, bukan `log.Fatal`. `log.Fatal` memanggil `os.Exit(1)`, sehingga fungsi-fungsi `defer` tidak dijalankan. Dengan `log.Printf`, fungsi `main` dapat mencapai akhir dan `defer database.Close()` dapat berjalan ketika `ListenAndServe` kembali.
 
-Penanganan ini belum merupakan graceful shutdown. Menekan `Ctrl+C` mengirim signal proses dan belum ada kode yang menangkap signal tersebut, memanggil `server.Shutdown`, serta menunggu request aktif selesai. Karena itu, pada tahap ini `defer database.Close()` tidak boleh dianggap terjamin berjalan saat proses dihentikan dengan `Ctrl+C`. Penanganan signal, shutdown HTTP server, context cancellation, dan timeout shutdown akan ditambahkan pada langkah berikutnya.
+Penanganan ini belum merupakan graceful shutdown. Menekan `Ctrl+C` mengirim signal proses dan belum ada kode yang menangkap signal tersebut, memanggil `server.Shutdown`, serta menunggu request aktif selesai. Karena itu, pada tahap ini `defer database.Close()` tidak boleh dianggap terjamin berjalan saat proses dihentikan dengan `Ctrl+C`. Penanganan signal, shutdown HTTP server, context cancellation, dan timeout shutdown akan ditambahkan pada Step 12.
 
 ## Memastikan health endpoint tetap tersedia
 
