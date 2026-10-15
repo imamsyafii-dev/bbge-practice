@@ -12,6 +12,10 @@ import (
 
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/config"
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/db"
+	accountapp "github.com/imamsyafii-dev/bbge-practice/srv-server/internal/app/account"
+	accountdomain "github.com/imamsyafii-dev/bbge-practice/srv-server/internal/domain/account"
+	"github.com/imamsyafii-dev/bbge-practice/srv-server/internal/router"
+	"github.com/imamsyafii-dev/bbge-practice/srv-server/internal/store"
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/pkg/postgres"
 )
 
@@ -72,12 +76,27 @@ func main() {
 
 	log.Printf("database migrations applied")
 
+	queries := store.New(database)
+
+	accountService := accountdomain.NewService(
+		queries,
+	)
+
+	accountUseCase := accountapp.NewUseCase(
+		accountService,
+	)
+
+	accountHandler := router.NewAccountHandler(
+		accountUseCase,
+	)
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(
 		"GET /health",
 		healthHandler,
 	)
+	accountHandler.Register(mux)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
