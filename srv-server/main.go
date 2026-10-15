@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/config"
+	"github.com/imamsyafii-dev/bbge-practice/srv-server/db"
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/pkg/postgres"
 )
 
@@ -59,6 +60,17 @@ func main() {
 		"connected to PostgreSQL database %s",
 		cfg.Postgres.Database,
 	)
+
+	if err := db.AutoMigrate(database); err != nil {
+		log.Printf(
+			"database migration failed: %v",
+			err,
+		)
+
+		return
+	}
+
+	log.Printf("database migrations applied")
 
 	mux := http.NewServeMux()
 
