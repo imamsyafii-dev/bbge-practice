@@ -19,6 +19,19 @@ import (
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/pkg/postgres"
 )
 
+const httpReadHeaderTimeout = 5 * time.Second
+
+func newHTTPServer(
+	address string,
+	handler http.Handler,
+) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+	}
+}
+
 func newAccountUseCase(
 	accountStore accountdomain.Store,
 ) *accountapp.UseCase {
@@ -116,11 +129,10 @@ func main() {
 		accountUseCase,
 	)
 
-	server := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           httpHandler,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	server := newHTTPServer(
+		cfg.HTTPAddr,
+		httpHandler,
+	)
 
 	log.Printf(
 		"practice server listening on http://localhost%s",

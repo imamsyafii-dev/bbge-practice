@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	accountapp "github.com/imamsyafii-dev/bbge-practice/srv-server/internal/app/account"
 	accountdomain "github.com/imamsyafii-dev/bbge-practice/srv-server/internal/domain/account"
@@ -75,6 +76,45 @@ func (f *fakeRootAccountUseCase) GetByUserID(
 		Name:   "Step 28 Practice User",
 		Status: 1,
 	}, nil
+}
+
+func TestNewHTTPServerConfiguresServer(
+	t *testing.T,
+) {
+	handler := http.NewServeMux()
+
+	server := newHTTPServer(
+		":28080",
+		handler,
+	)
+
+	if server == nil {
+		t.Fatal(
+			"newHTTPServer returned nil",
+		)
+	}
+
+	if server.Addr != ":28080" {
+		t.Fatalf(
+			"Addr = %q, want %q",
+			server.Addr,
+			":28080",
+		)
+	}
+
+	if server.Handler != handler {
+		t.Fatal(
+			"Handler does not preserve the supplied handler",
+		)
+	}
+
+	if server.ReadHeaderTimeout != 5*time.Second {
+		t.Fatalf(
+			"ReadHeaderTimeout = %s, want %s",
+			server.ReadHeaderTimeout,
+			5*time.Second,
+		)
+	}
 }
 
 func TestNewAccountUseCaseWiresDependencies(
