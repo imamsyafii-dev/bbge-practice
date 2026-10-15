@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SQLC_VERSION="v1.31.1"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+
+if ! command -v go >/dev/null 2>&1; then
+  echo "Go is required to install sqlc" >&2
+  exit 1
+fi
+
+SQLC_BIN_DIR="$(go env GOBIN)"
+if [[ -z "${SQLC_BIN_DIR}" ]]; then
+  GOPATH_VALUE="$(go env GOPATH)"
+  SQLC_BIN_DIR="${GOPATH_VALUE%%:*}/bin"
+fi
+
+SQLC_BIN="${SQLC_BIN_DIR}/sqlc"
+
+CURRENT_VERSION=""
+if [[ -x "${SQLC_BIN}" ]]; then
+  CURRENT_VERSION="$("${SQLC_BIN}" version 2>/dev/null || true)"
+fi
+
+if [[ "${CURRENT_VERSION}" != "${SQLC_VERSION}" ]]; then
+  echo "Installing sqlc ${SQLC_VERSION}..."
+  go install "github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}"
+fi
+
+ACTUAL_VERSION="$("${SQLC_BIN}" version)"
+if [[ "${ACTUAL_VERSION}" != "${SQLC_VERSION}" ]]; then
+  echo "sqlc version check failed: expected ${SQLC_VERSION}, got ${ACTUAL_VERSION}" >&2
+  exit 1
+fi
+
+cd "${PROJECT_DIR}"
+"${SQLC_BIN}" generate -f sqlc.yaml
+
+echo "sqlc generation completed"
