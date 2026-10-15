@@ -19,6 +19,24 @@ import (
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/pkg/postgres"
 )
 
+func newHTTPHandler(
+	accountUseCase router.AccountUseCase,
+) http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc(
+		"GET /health",
+		healthHandler,
+	)
+
+	accountHandler := router.NewAccountHandler(
+		accountUseCase,
+	)
+	accountHandler.Register(mux)
+
+	return mux
+}
+
 func healthHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
@@ -86,21 +104,13 @@ func main() {
 		accountService,
 	)
 
-	accountHandler := router.NewAccountHandler(
+	httpHandler := newHTTPHandler(
 		accountUseCase,
 	)
 
-	mux := http.NewServeMux()
-
-	mux.HandleFunc(
-		"GET /health",
-		healthHandler,
-	)
-	accountHandler.Register(mux)
-
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           mux,
+		Handler:           httpHandler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
