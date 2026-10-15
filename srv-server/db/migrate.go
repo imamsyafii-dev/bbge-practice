@@ -13,6 +13,12 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
+type gooseUpFunc func(
+	*sql.DB,
+	string,
+	...goose.OptionsFunc,
+) error
+
 func AutoMigrate(
 	pool *pgxpool.Pool,
 ) error {
@@ -42,7 +48,17 @@ func Migrate(
 
 	goose.SetBaseFS(migrations)
 
-	if err := goose.Up(
+	return runMigrations(
+		database,
+		goose.Up,
+	)
+}
+
+func runMigrations(
+	database *sql.DB,
+	up gooseUpFunc,
+) error {
+	if err := up(
 		database,
 		"migrations",
 	); err != nil {
