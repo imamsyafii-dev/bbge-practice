@@ -4,6 +4,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/imamsyafii-dev/bbge-practice/srv-server/config"
 )
 
 func healthHandler(
@@ -22,6 +24,8 @@ func healthHandler(
 }
 
 func main() {
+	cfg := config.Load()
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(
@@ -30,7 +34,7 @@ func main() {
 	)
 
 	server := &http.Server{
-		Addr:              ":18080",
+		Addr:              cfg.HTTPAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
