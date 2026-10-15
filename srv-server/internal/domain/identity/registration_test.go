@@ -17,13 +17,6 @@ func TestValidateRegisterInput(
 			name: "valid input",
 		},
 		{
-			name: "password is empty",
-			change: func(input *RegisterInput) {
-				input.Password = "   "
-			},
-			wantErr: ErrPasswordRequired,
-		},
-		{
 			name: "device ID is empty",
 			change: func(input *RegisterInput) {
 				input.DeviceID = "\t"
@@ -91,7 +84,6 @@ const ed25519PublicKeySizeForTest = 32
 
 func validRegisterInput() RegisterInput {
 	return RegisterInput{
-		Password:    "practice-password",
 		DeviceID:    "practice-device-001",
 		DeviceName:  "Practice Phone",
 		DeviceModel: "Practice Model",

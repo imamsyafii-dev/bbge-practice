@@ -9,9 +9,6 @@ import (
 const x25519PublicKeySize = 32
 
 var (
-	ErrPasswordRequired = errors.New(
-		"password is required",
-	)
 	ErrDeviceIDRequired = errors.New(
 		"device id is required",
 	)
@@ -21,7 +18,6 @@ var (
 )
 
 type RegisterInput struct {
-	Password          string
 	DeviceID          string
 	DeviceName        string
 	DeviceModel       string
@@ -33,10 +29,6 @@ type RegisterInput struct {
 func validateRegisterInput(
 	input RegisterInput,
 ) error {
-	if strings.TrimSpace(input.Password) == "" {
-		return ErrPasswordRequired
-	}
-
 	if strings.TrimSpace(input.DeviceID) == "" {
 		return ErrDeviceIDRequired
 	}

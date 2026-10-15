@@ -17,7 +17,7 @@ Nomor dan kelompok di bawah ini menjadi urutan belajar yang tetap. Detail implem
 
 Source production masih memiliki residue legacy berupa field `name` dan `email` pada protobuf serta kolom email pada database/auth storage. Alur registrasi aktif tidak mempercayai `name` atau `email` dari request: server membuat identity internalnya sendiri. Practice sengaja tidak membawa residue email tersebut ke contract baru.
 
-Endpoint password production yang aktif memakai wrapper lebih lengkap: `username`, `password`, nested registration, encrypted identity backup, dan `request_id` untuk retry yang idempotent. Fase ini mempelajari username, hashing, dan registration request ID secara bertahap. Encrypted identity backup serta proof-of-possession/signature verification sengaja berada **di luar Fase 02**; keduanya tidak boleh dianggap terimplementasi oleh latihan sederhana ini.
+Endpoint password production yang aktif memakai wrapper lebih lengkap: `username`, `password`, nested registration, encrypted identity backup, dan `request_id` untuk retry. Retry dengan `request_id` serta identifier identity yang cocok dapat melanjutkan account yang sudah ada tanpa membuat account kedua; nilai yang tidak cocok menjadi conflict. Alur aktif tidak membandingkan seluruh field request untuk menentukan kecocokan tersebut. Fase ini mempelajari username, hashing, dan registration request ID secara bertahap. Encrypted identity backup serta proof-of-possession/signature verification sengaja berada **di luar Fase 02**; keduanya tidak boleh dianggap terimplementasi oleh latihan sederhana ini.
 
 ## Kelompok A — Contract registrasi dan credential (Step 36–42)
 
@@ -27,7 +27,7 @@ Membuat contract practice sederhana yang diekstrak dari shared inner registratio
 
 ### Step 37 — Password registration wrapper dan policy
 
-Memperkenalkan `username`, nested registration, serta `request_id` dan aturan retry idempotent pada contract practice. Password policy dipisahkan dari validasi bentuk request. Encrypted identity backup tetap di luar fase ini.
+Memindahkan password dari inner `RegisterInput` ke outer `PasswordRegisterInput`, lalu memperkenalkan `username`, nested registration, `request_id`, normalisasi username, dan password policy pada contract practice. Step ini baru memvalidasi bahan yang kelak dipakai untuk retry idempotent; perilaku retry terhadap data tersimpan baru diterapkan setelah persistence dan transaction tersedia. Encrypted identity backup tetap di luar fase ini.
 
 ### Step 38 — Password credential dan hasher boundary
 
@@ -77,7 +77,7 @@ Menyimpan account, password credential yang sudah di-hash, dan device-as-session
 
 ### Step 49 — Rollback dan conflict test
 
-Membuktikan kegagalan di tengah registrasi tidak meninggalkan data parsial, retry dengan registration request ID yang sama bersifat idempotent, dan conflict dipetakan menjadi error domain yang stabil.
+Membuktikan kegagalan di tengah registrasi tidak meninggalkan data parsial, retry dengan registration request ID serta identity identifier yang cocok tidak membuat account kedua, dan mismatch dipetakan menjadi conflict domain yang stabil.
 
 ## Kelompok C — Application, HTTP, dan wiring (Step 50–55)
 
