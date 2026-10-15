@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/imamsyafii-dev/bbge-practice/srv-server/config"
@@ -28,8 +32,15 @@ func healthHandler(
 func main() {
 	cfg := config.Load()
 
-	startupCtx, cancelStartup := context.WithTimeout(
+	appCtx, stopSignals := signal.NotifyContext(
 		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stopSignals()
+
+	startupCtx, cancelStartup := context.WithTimeout(
+		appCtx,
 		5*time.Second,
 	)
 
@@ -67,10 +78,58 @@ func main() {
 		server.Addr,
 	)
 
-	if err := server.ListenAndServe(); err != nil {
+	serverErrors := make(chan error, 1)
+
+	go func() {
+		serverErrors <- server.ListenAndServe()
+	}()
+
+	select {
+	case <-appCtx.Done():
+		log.Printf("shutdown signal received")
+		stopSignals()
+
+	case err := <-serverErrors:
+		if err != nil &&
+			!errors.Is(err, http.ErrServerClosed) {
+			log.Printf(
+				"practice server stopped: %v",
+				err,
+			)
+		}
+
+		return
+	}
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(
+		context.Background(),
+		10*time.Second,
+	)
+
+	shutdownErr := server.Shutdown(shutdownCtx)
+	cancelShutdown()
+
+	if shutdownErr != nil {
+		log.Printf(
+			"practice server shutdown failed: %v",
+			shutdownErr,
+		)
+
+		if err := server.Close(); err != nil {
+			log.Printf(
+				"practice server force close failed: %v",
+				err,
+			)
+		}
+	}
+
+	if err := <-serverErrors; err != nil &&
+		!errors.Is(err, http.ErrServerClosed) {
 		log.Printf(
 			"practice server stopped: %v",
 			err,
 		)
 	}
+
+	log.Printf("practice server stopped")
 }
