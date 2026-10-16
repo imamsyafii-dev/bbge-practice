@@ -4,6 +4,8 @@ Fase ini melanjutkan fondasi Step 1–35 dengan membangun alur identity dan auth
 
 Nomor dan kelompok di bawah ini menjadi urutan belajar yang tetap. Detail implementasi tiap step masih dapat disempurnakan setelah membandingkannya dengan source `bbge-biz` yang aktif pada saat step tersebut dimulai. Dengan cara ini, latihan tetap terarah tanpa menyalin desain lama yang sudah tidak digunakan.
 
+Status saat ini: **Step 36–41 selesai**. Step berikutnya adalah **Step 42 — Registration domain service**.
+
 ## Prinsip contract practice
 
 - Registrasi practice tidak menerima `email`.
@@ -43,11 +45,11 @@ Membuat concrete `RandomUserIDGenerator` yang menghasilkan opaque `user_id` serv
 
 ### Step 41 — Device-as-session ownership
 
-Mendefinisikan entity device beserta invariannya: device ID wajib, device dimiliki account, dan record device membawa refresh token, session status, issued-at, serta expired-at. Tidak dibuat entity atau tabel session umum yang terpisah.
+Mendefinisikan entity device beserta invariannya: ownership memakai pasangan `(user_id, device_id)`, device ID dan owner wajib, device flag hanya menerima nilai canonical, dan record device membawa refresh token, session status, issued-at, serta expired-at. Step ini juga menambahkan concrete random refresh-token generator dari 32 byte `crypto/rand` menjadi 64 lowercase hexadecimal. Waktu dinormalisasi ke UTC dan sesi aktif memakai interval setengah terbuka `[issued_at, expired_at)`. Tidak dibuat entity atau tabel session umum yang terpisah. Interface generator milik consumer dan orkestrasi registration tetap ditunda sampai Step 42.
 
 ### Step 42 — Registration domain service
 
-Menggabungkan wrapper registrasi, validasi contract, password credential, identity generator, aturan idempotency, dan device-as-session pada domain service tanpa persistence nyata. Test mengunci urutan serta kegagalan dependency.
+Menggabungkan wrapper registrasi, validasi contract, password credential, identity generator, dan device-as-session pada domain service tanpa persistence nyata. Step ini memvalidasi serta membawa `registration_request_id` melalui orchestration, tetapi belum menerapkan perilaku retry/match/conflict terhadap data tersimpan; idempotency tersebut baru dibuktikan pada Step 49. Test mengunci urutan serta kegagalan dependency.
 
 ## Kelompok B — Persistence dan transaction (Step 43–49)
 

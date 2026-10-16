@@ -21,7 +21,7 @@ type RegisterInput struct {
 	DeviceID          string
 	DeviceName        string
 	DeviceModel       string
-	DeviceFlag        int32
+	DeviceFlag        DeviceFlag
 	IdentifierX25519  []byte
 	IdentifierEd25519 []byte
 }
@@ -31,6 +31,9 @@ func validateRegisterInput(
 ) error {
 	if strings.TrimSpace(input.DeviceID) == "" {
 		return ErrDeviceIDRequired
+	}
+	if !input.DeviceFlag.valid() {
+		return ErrDeviceFlagInvalid
 	}
 
 	if len(input.IdentifierX25519) !=

@@ -24,6 +24,13 @@ func TestValidateRegisterInput(
 			wantErr: ErrDeviceIDRequired,
 		},
 		{
+			name: "device flag is invalid",
+			change: func(input *RegisterInput) {
+				input.DeviceFlag = DeviceFlag(3)
+			},
+			wantErr: ErrDeviceFlagInvalid,
+		},
+		{
 			name: "X25519 identifier has invalid size",
 			change: func(input *RegisterInput) {
 				input.IdentifierX25519 = make(
