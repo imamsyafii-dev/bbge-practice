@@ -35,7 +35,7 @@ Membuat bentuk credential terpisah dari account, tipe `EncodedPasswordHash` agar
 
 ### Step 39 — Implementasi dan test password hashing
 
-Menggunakan algoritma password hashing yang sesuai, memverifikasi password benar/salah, dan memastikan hasil hash tidak sama dengan plaintext. Parameter algoritma akan dikunci setelah kembali memeriksa dependency dan kebijakan source aktif.
+Mengimplementasikan concrete `Argon2IDPasswordHasher` dengan Argon2id v=19, `m=19456` KiB, `t=2`, `p=1`, random salt 16 byte, dan derived key 32 byte. Hash memakai format tetap bergaya PHC dengan raw standard Base64; verification menolak struktur, parameter, encoding, serta panjang yang tidak persis sesuai contract sebelum menjalankan bounded dummy work. Hasher membatasi pekerjaan KDF per process melalui semaphore fail-fast, membandingkan key dengan constant-time primitive, serta memeriksa cancellation sebelum dan setelah KDF. Pemeriksaan context tidak dapat menghentikan `argon2.IDKey` yang sedang berjalan, dan dummy work tidak menjanjikan waktu semua jalur identik. Interface registrasi tetap hanya mempunyai `Hash`; `Verify` berada pada concrete type sampai consumer login diperkenalkan.
 
 ### Step 40 — Server-generated user identity
 
