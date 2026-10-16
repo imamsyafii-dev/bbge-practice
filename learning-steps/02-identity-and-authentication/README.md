@@ -31,7 +31,7 @@ Memindahkan password dari inner `RegisterInput` ke outer `PasswordRegisterInput`
 
 ### Step 38 — Password credential dan hasher boundary
 
-Membuat bentuk credential terpisah dari account serta interface password hasher. Plaintext hanya hidup pada boundary proses registrasi dan tidak menjadi field account yang dipersist.
+Membuat bentuk credential terpisah dari account, tipe `EncodedPasswordHash` agar hash tidak diperlakukan sebagai `string` biasa, serta interface consumer `PasswordHasher` yang hanya meminta operasi `Hash`. Plaintext hanya hidup pada boundary proses registrasi dan tidak menjadi field account atau credential yang dipersist. Operasi `Verify` boleh tetap menjadi method concrete hasher pada Step 39; interface verifier baru ditambahkan ketika consumer login benar-benar membutuhkannya, bukan dimasukkan lebih awal ke interface registrasi.
 
 ### Step 39 — Implementasi dan test password hashing
 

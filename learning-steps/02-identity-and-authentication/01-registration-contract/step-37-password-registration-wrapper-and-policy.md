@@ -1040,7 +1040,7 @@ Fokus berikutnya:
 
 - memisahkan plaintext input dari credential yang dapat dipersist;
 - mendefinisikan bentuk password credential tanpa memasukkan password mentah;
-- membuat interface kecil untuk hashing dan verification;
+- membuat interface consumer kecil yang hanya meminta hashing; verification tetap menjadi kemampuan concrete pada Step 39 dan baru masuk ke interface verifier saat ada consumer yang membutuhkannya;
 - memastikan domain service kelak bergantung pada kemampuan yang dibutuhkan, bukan implementasi hashing konkret;
 - mengunci dengan test bahwa plaintext tidak masuk ke entity account atau credential persistence.
 
