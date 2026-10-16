@@ -39,7 +39,7 @@ Mengimplementasikan concrete `Argon2IDPasswordHasher` dengan Argon2id v=19, `m=1
 
 ### Step 40 — Server-generated user identity
 
-Membuat generator `user_id` melalui dependency yang dapat di-fake. Test memastikan input registrasi tidak dapat memilih atau menimpa identity pengguna.
+Membuat concrete `RandomUserIDGenerator` yang menghasilkan opaque `user_id` server-side dari 16 byte `crypto/rand` menjadi 32 karakter lowercase hexadecimal. Random reader disimpan sebagai private `io.Reader` agar failure, output, dan cancellation boundary dapat diuji deterministik. Test struktural mengunci bahwa `RegisterInput` dan `PasswordRegisterInput` tidak mengekspos field `UserID`. Interface `UserIDGenerator` milik consumer, fake generator, dan behavioral test bahwa registration service memakai hasil generator—bukan nilai client—sengaja baru ditambahkan pada Step 42 ketika consumer tersebut benar-benar ada.
 
 ### Step 41 — Device-as-session ownership
 
